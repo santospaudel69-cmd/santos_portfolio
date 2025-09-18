@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Santos Paudel - Portfolio</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; color: #333; }
+    header { background: #2c3e50; color: white; text-align: center; padding: 2rem; }
+    nav a { margin: 0 10px; color: white; text-decoration: none; font-weight: bold; }
+    section { padding: 2rem; max-width: 900px; margin: auto; }
+    h1, h2 { color: #2c3e50; }
+    .card { background: white; padding: 1.5rem; margin: 1rem 0; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    footer { text-align: center; background: #2c3e50; color: white; padding: 1rem; margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Santos Paudel</h1>
+    <nav>
+      <a href="#about">About</a>
+      <a href="#education">Education</a>
+      <a href="#projects">Projects</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </header>
+
+  <section id="about">
+    <h2>About Me</h2>
+    <div class="card">
+      <p>Hello! I’m <b>Santos Paudel</b>, a student passionate about both business and technology. 
+      I am currently exploring how modern IT solutions can create opportunities for entrepreneurship. 
+      My interests include researching IT markets, learning programming, and applying my skills to 
+      build practical projects such as websites and applications. 
+      I aim to combine business knowledge with technical expertise to create impactful digital solutions.</p>
+    </div>
+  </section>
+
+  <section id="education">
+    <h2>Education</h2>
+    <div class="card">
+      <p>Currently studying <b>IBM (Integrated Business Management)</b> at <b>Dong-A University</b>. 
+      This program has helped me understand business strategies, management practices, and how IT can 
+      be integrated into global business operations.</p>
+    </div>
+  </section>
+
+  <section id="projects">
+    <h2>Projects</h2>
+    <div class="card">
+      <h3>Project 1: Researching the Nepal IT Market</h3>
+      <p>This project involved studying the current state of the IT sector in Nepal to explore 
+      opportunities for starting a new business. I analyzed trends such as the rise of digital 
+      services, e-commerce, and software development. The goal was to identify potential areas 
+      where entrepreneurs can invest and grow in Nepal’s emerging digital economy.</p>
+    </div>
+    <div class="card">
+      <h3>Project 2: Learning Programming for Website & Application Development</h3>
+      <p>In this project, I focused on learning programming languages such as HTML, CSS, and JavaScript 
+      with the aim of developing my own website and applications. This hands-on learning process 
+      allowed me to understand how coding works and how digital platforms are built. 
+      The project is an ongoing journey where I plan to expand my skills into backend technologies 
+      and mobile app development in the future.</p>
+    </div>
+  </section>
+
+  <section id="contact">
+    <h2>Contact</h2>
+    <div class="card">
+      <p>Email: santos@example.com</p>
+      <p>GitHub: <a href="https://github.com/yourusername" target="_blank">github.com/yourusername</a></p>
+    </div>
+  </section>
+
+  <footer>
+    <p>© 2025 Santos Paudel</p>
+  </footer>
+</body>
+</html>
