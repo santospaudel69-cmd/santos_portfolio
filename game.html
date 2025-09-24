@@ -2,78 +2,336 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Santos Paudel - Portfolio</title>
+  <title>Tic Tac Toe with AI</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; color: #333; }
-    header { background: #2c3e50; color: white; text-align: center; padding: 2rem; }
-    nav a { margin: 0 10px; color: white; text-decoration: none; font-weight: bold; }
-    section { padding: 2rem; max-width: 900px; margin: auto; }
-    h1, h2 { color: #2c3e50; }
-    .card { background: white; padding: 1.5rem; margin: 1rem 0; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    footer { text-align: center; background: #2c3e50; color: white; padding: 1rem; margin-top: 2rem; }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #ff9a9e, #fad0c4, #fad0c4, #fbc2eb, #a18cd1);
+      background-size: 400% 400%;
+      animation: gradientMove 12s ease infinite;
+    }
+
+    @keyframes gradientMove {
+      0% {background-position: 0% 50%;}
+      50% {background-position: 100% 50%;}
+      100% {background-position: 0% 50%;}
+    }
+
+    /* Chat History Button */
+    #chat-button {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      background: linear-gradient(45deg, #ff416c, #ff4b2b);
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transition: 0.3s ease;
+    }
+    #chat-button:hover {
+      transform: scale(1.1);
+      background: linear-gradient(45deg, #ff4b2b, #ff416c);
+    }
+
+    .container {
+      text-align: center;
+      margin-top: 40px;
+      background: rgba(255,255,255,0.85);
+      padding: 20px 40px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      color: #333;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      grid-template-rows: repeat(3, 100px);
+      gap: 8px;
+      justify-content: center;
+      margin: 20px auto;
+    }
+
+    .cell {
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(135deg, #6dd5ed, #2193b0);
+      border: 2px solid #fff;
+      font-size: 2.5em;
+      font-weight: bold;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 12px;
+      transition: 0.3s;
+    }
+    .cell:hover {
+      background: linear-gradient(135deg, #2193b0, #6dd5ed);
+      transform: scale(1.05);
+    }
+    .cell.win {
+      background: linear-gradient(135deg, #00b09b, #96c93d);
+      color: #fff;
+    }
+
+    .controls {
+      margin: 10px 0;
+    }
+
+    select, button {
+      margin: 5px;
+      padding: 8px 16px;
+      font-size: 14px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    select {
+      background: #f8f9fa;
+      border: 2px solid #007bff;
+    }
+    button {
+      color: white;
+      font-weight: bold;
+    }
+    button:nth-of-type(1) { background: #28a745; } /* Reset */
+    button:nth-of-type(1):hover { background: #218838; }
+    button:nth-of-type(2) { background: #dc3545; } /* Undo */
+    button:nth-of-type(2):hover { background: #c82333; }
+
+    .status {
+      margin-top: 10px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #444;
+    }
+
+    .scoreboard {
+      margin-top: 15px;
+      font-size: 16px;
+      background: #fff;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.2);
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Santos Paudel</h1>
-    <nav>
-      <a href="#about">About</a>
-      <a href="#education">Education</a>
-      <a href="#projects">Projects</a>
-      <a href="#contact">Contact</a>
-    </nav>
-  </header>
 
-  <section id="about">
-    <h2>About Me</h2>
-    <div class="card">
-      <p>Hello! I’m <b>Santos Paudel</b>, a student passionate about both business and technology. 
-      I am currently exploring how modern IT solutions can create opportunities for entrepreneurship. 
-      My interests include researching IT markets, learning programming, and applying my skills to 
-      build practical projects such as websites and applications. 
-      I aim to combine business knowledge with technical expertise to create impactful digital solutions.</p>
-    </div>
-  </section>
+  <!-- Chat History Button -->
+  <a id="chat-button" href="https://chatgpt.com/share/68cb94a0-4bac-8004-8329-af52126bc8da" target="_blank">
+    🔗 Chat History
+  </a>
 
-  <section id="education">
-    <h2>Education</h2>
-    <div class="card">
-      <p>Currently studying <b>IBM (Integrated Business Management)</b> at <b>Dong-A University</b>. 
-      This program has helped me understand business strategies, management practices, and how IT can 
-      be integrated into global business operations.</p>
+  <div class="container">
+    <h1>🎮 Tic Tac Toe</h1>
+    <div class="controls">
+      <label>
+        Difficulty:
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="hard">Hard</option>
+        </select>
+      </label>
+      <button onclick="resetGame()">Reset</button>
+      <button onclick="undoMove()">Undo</button>
     </div>
-  </section>
 
-  <section id="projects">
-    <h2>Projects</h2>
-    <div class="card">
-      <h3>Project 1: Researching the Nepal IT Market</h3>
-      <p>This project involved studying the current state of the IT sector in Nepal to explore 
-      opportunities for starting a new business. I analyzed trends such as the rise of digital 
-      services, e-commerce, and software development. The goal was to identify potential areas 
-      where entrepreneurs can invest and grow in Nepal’s emerging digital economy.</p>
-    </div>
-    <div class="card">
-      <h3>Project 2: Learning Programming for Website & Application Development</h3>
-      <p>In this project, I focused on learning programming languages such as HTML, CSS, and JavaScript 
-      with the aim of developing my own website and applications. This hands-on learning process 
-      allowed me to understand how coding works and how digital platforms are built. 
-      The project is an ongoing journey where I plan to expand my skills into backend technologies 
-      and mobile app development in the future.</p>
-    </div>
-  </section>
+    <div class="board" id="board"></div>
+    <div class="status" id="status"></div>
 
-  <section id="contact">
-    <h2>Contact</h2>
-    <div class="card">
-      <p>Email: santos@example.com</p>
-      <p>GitHub: <a href="https://github.com/yourusername" target="_blank">github.com/yourusername</a></p>
+    <div class="scoreboard">
+      🧑 Player Wins: <span id="playerScore">0</span> |
+      🤖 AI Wins: <span id="aiScore">0</span> |
+      🤝 Draws: <span id="draws">0</span>
     </div>
-  </section>
+  </div>
 
-  <footer>
-    <p>© 2025 Santos Paudel</p>
-  </footer>
+  <script>
+    const boardElement = document.getElementById("board");
+    const statusElement = document.getElementById("status");
+    const playerScoreElement = document.getElementById("playerScore");
+    const aiScoreElement = document.getElementById("aiScore");
+    const drawsElement = document.getElementById("draws");
+    const difficultyElement = document.getElementById("difficulty");
+
+    let board, currentPlayer, gameOver, history;
+    let playerScore = 0, aiScore = 0, draws = 0;
+
+    function initGame() {
+      board = Array(9).fill(null);
+      history = [];
+      currentPlayer = "X"; 
+      gameOver = false;
+      boardElement.innerHTML = "";
+      for (let i = 0; i < 9; i++) {
+        const cell = document.createElement("div");
+        cell.classList.add("cell");
+        cell.dataset.index = i;
+        cell.addEventListener("click", handleCellClick);
+        boardElement.appendChild(cell);
+      }
+      statusElement.textContent = "Your turn!";
+    }
+
+    function handleCellClick(e) {
+      const index = e.target.dataset.index;
+      if (!board[index] && !gameOver && currentPlayer === "X") {
+        makeMove(index, "X");
+        if (!gameOver) {
+          setTimeout(aiMove, 400);
+        }
+      }
+    }
+
+    function makeMove(index, player) {
+      board[index] = player;
+      history.push(index);
+      const cell = boardElement.children[index];
+      cell.textContent = player;
+      checkWinner();
+      currentPlayer = currentPlayer === "X" ? "O" : "X";
+    }
+
+    function aiMove() {
+      if (gameOver) return;
+      let move;
+      if (difficultyElement.value === "easy") {
+        const available = board.map((v, i) => (v ? null : i)).filter(v => v !== null);
+        move = available[Math.floor(Math.random() * available.length)];
+      } else {
+        move = minimax(board, "O").index;
+      }
+      makeMove(move, "O");
+    }
+
+    function checkWinner() {
+      const winPatterns = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+      ];
+      let winner = null;
+      for (const pattern of winPatterns) {
+        const [a,b,c] = pattern;
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+          winner = board[a];
+          pattern.forEach(i => boardElement.children[i].classList.add("win"));
+          break;
+        }
+      }
+      if (winner) {
+        statusElement.textContent = winner === "X" ? "🎉 You win!" : "🤖 AI wins!";
+        if (winner === "X") playerScore++; else aiScore++;
+        updateScores();
+        gameOver = true;
+      } else if (board.every(cell => cell)) {
+        statusElement.textContent = "🤝 It's a draw!";
+        draws++;
+        updateScores();
+        gameOver = true;
+      }
+    }
+
+    function updateScores() {
+      playerScoreElement.textContent = playerScore;
+      aiScoreElement.textContent = aiScore;
+      drawsElement.textContent = draws;
+    }
+
+    function resetGame() {
+      initGame();
+    }
+
+    function undoMove() {
+      if (history.length < 1 || gameOver) return;
+      let lastMove = history.pop();
+      board[lastMove] = null;
+      boardElement.children[lastMove].textContent = "";
+      if (history.length && board[history[history.length - 1]] === "O") {
+        lastMove = history.pop();
+        board[lastMove] = null;
+        boardElement.children[lastMove].textContent = "";
+      }
+      gameOver = false;
+      currentPlayer = "X";
+      statusElement.textContent = "Your turn!";
+      Array.from(boardElement.children).forEach(c => c.classList.remove("win"));
+    }
+
+    function minimax(newBoard, player) {
+      const availSpots = newBoard.map((v, i) => (v ? null : i)).filter(v => v !== null);
+      if (checkWin(newBoard, "X")) return { score: -10 };
+      if (checkWin(newBoard, "O")) return { score: 10 };
+      if (availSpots.length === 0) return { score: 0 };
+
+      const moves = [];
+      for (let i = 0; i < availSpots.length; i++) {
+        const move = {};
+        move.index = availSpots[i];
+        newBoard[availSpots[i]] = player;
+        if (player === "O") {
+          move.score = minimax(newBoard, "X").score;
+        } else {
+          move.score = minimax(newBoard, "O").score;
+        }
+        newBoard[availSpots[i]] = null;
+        moves.push(move);
+      }
+
+      let bestMove;
+      if (player === "O") {
+        let bestScore = -Infinity;
+        for (let i = 0; i < moves.length; i++) {
+          if (moves[i].score > bestScore) {
+            bestScore = moves[i].score;
+            bestMove = i;
+          }
+        }
+      } else {
+        let bestScore = Infinity;
+        for (let i = 0; i < moves.length; i++) {
+          if (moves[i].score < bestScore) {
+            bestScore = moves[i].score;
+            bestMove = i;
+          }
+        }
+      }
+      return moves[bestMove];
+    }
+
+    function checkWin(board, player) {
+      const winPatterns = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+      ];
+      return winPatterns.some(pattern =>
+        pattern.every(i => board[i] === player)
+      );
+    }
+
+    initGame();
+  </script>
 </body>
 </html>
+
