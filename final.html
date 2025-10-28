@@ -51,7 +51,7 @@
       inset: 0;
       background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.15), transparent 70%);
       animation: moveGlow 10s infinite alternate ease-in-out;
-      pointer-events: none; /* allows clicks below */
+      pointer-events: none;
     }
 
     @keyframes moveGlow {
@@ -132,7 +132,7 @@
       background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(255,255,255,0));
       opacity: 0;
       transition: opacity 0.4s ease;
-      pointer-events: none; /* fix click issue */
+      pointer-events: none;
     }
 
     .card:hover::before {
@@ -267,19 +267,28 @@
 
     <div class="card">
       <h3>Project 1: Old Game 🎮</h3>
-      <p>This was my very first interactive web-based game created with HTML, CSS, and JavaScript. 
-      It was a foundational step that taught me how interactivity and creativity can come together in programming.</p>
+      <p>This was my first interactive web-based game created with HTML, CSS, and JavaScript. 
+      It was the foundation that taught me interactivity and creativity in programming.</p>
       <a href="https://santospaudel69-cmd.github.io/santos_portfolio/game.html" target="_blank" class="btn">Play Old Game</a>
     </div>
 
     <div class="card">
       <h3>Project 2: New Game 🚀</h3>
-      <p>This project represents my growth as a developer — a polished version of my first game, featuring improved visuals, animations, and gameplay. 
-      It demonstrates how consistent learning leads to real progress.</p>
+      <p>This project represents my growth as a developer — a polished version of my first game, featuring improved visuals, animations, and gameplay.</p>
       <div class="btn-group">
         <a href="https://santospaudel69-cmd.github.io/santos_portfolio/update.html" target="_blank" class="btn">Play New Game</a>
         <a href="https://chatgpt.com/share/68d3e946-eeb0-8007-b8db-74b863680554" target="_blank" class="btn green">Chat History 💬</a>
         <a href="https://1drv.ms/w/c/3b0b5205309a4b30/ETsswSMgE85Noku7X4v03O0BQSBzeuRiwyg-EBt9wng3yw" target="_blank" class="btn purple">Word Document 📄</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Project 3: Programming Fundamentals 💻</h3>
+      <p>This project focuses on the basic principles of programming and problem-solving. 
+      It includes fundamental exercises written in Python, developed on Google Colab to strengthen my understanding of programming logic and structure.</p>
+      <div class="btn-group">
+        <a href="https://colab.research.google.com/drive/1-YvgNvsLzTBEUjNfr1ddUUfLNh2sKLP6" target="_blank" class="btn">Programming Fundamentals</a>
+        <a href="https://chatgpt.com/share/69001568-02e4-8007-ab78-d026bb69f6c3" target="_blank" class="btn green">Chat History 2 💬</a>
       </div>
     </div>
   </section>
