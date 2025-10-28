@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Santos Paudel - Portfolio</title>
   <style>
-    /* === GLOBAL THEME === */
+    /* === COLOR & THEME VARIABLES === */
     :root {
       --primary: #1e3a8a;
       --secondary: #3b82f6;
@@ -51,6 +51,7 @@
       inset: 0;
       background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.15), transparent 70%);
       animation: moveGlow 10s infinite alternate ease-in-out;
+      pointer-events: none; /* allows clicks below */
     }
 
     @keyframes moveGlow {
@@ -86,7 +87,7 @@
       transform: translateY(-2px);
     }
 
-    /* === SECTION STYLES === */
+    /* === SECTIONS === */
     section {
       max-width: 1100px;
       margin: 3.5rem auto;
@@ -111,7 +112,7 @@
       border-radius: 4px;
     }
 
-    /* === CARD / GLASS STYLE === */
+    /* === CARD STYLE === */
     .card {
       background: rgba(255, 255, 255, 0.9);
       backdrop-filter: blur(8px);
@@ -131,6 +132,7 @@
       background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(255,255,255,0));
       opacity: 0;
       transition: opacity 0.4s ease;
+      pointer-events: none; /* fix click issue */
     }
 
     .card:hover::before {
@@ -159,6 +161,8 @@
       font-weight: 600;
       transition: all 0.3s ease;
       box-shadow: 0 4px 14px rgba(59,130,246,0.3);
+      position: relative;
+      z-index: 10;
     }
 
     .btn:hover {
@@ -226,6 +230,7 @@
 </head>
 <body>
 
+  <!-- === HEADER === -->
   <header>
     <h1>Santos Paudel</h1>
     <nav>
@@ -289,9 +294,10 @@
     </div>
   </section>
 
+  <!-- === FOOTER === -->
   <footer>
-    <p>© 2025 Santos Paudel — Designed with 💙 passion, creativity, and code.  
-    <br>Follow my work on <a href="https://github.com/santospaudel69-cmd" target="_blank">GitHub</a>.</p>
+    <p>© 2025 Santos Paudel — Designed with 💙 passion, creativity, and code.<br>
+    Follow my work on <a href="https://github.com/santospaudel69-cmd" target="_blank">GitHub</a>.</p>
   </footer>
 
 </body>
