@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CSV Anomaly / Outlier Detector</title>
+
+  <!-- PapaParse CDN (for robust CSV parsing) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    h1 { text-align: center; color: #2c3e50; }
+    p { text-align: center; color: #555; }
+    .upload-section {
+      text-align: center;
+      margin: 30px 0;
+    }
+    #csvFile { padding: 10px; font-size: 16px; }
+    #analyzeBtn {
+      padding: 12px 30px;
+      font-size: 16px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    #analyzeBtn:disabled { background: #95a5a6; cursor: not-allowed; }
+    #analyzeBtn:hover:not(:disabled) { background: #2980b9; }
+
+    .summary {
+      background: #ecf0f1;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+      text-align: center;
+      font-size: 18px;
+    }
+    .download-btn {
+      margin-top: 15px;
+      padding: 10px 20px;
+      background: #e74c3c;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .download-btn:hover { background: #c0392b; }
+
+    .table-container {
+      max-height: 500px;
+      overflow: auto;
+      margin: 20px 0;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+    th {
+      background: #2c3e50;
+      color: white;
+      position: sticky;
+      top: 0;
+    }
+    tr:nth-child(even) { background: #f9f9f9; }
+    #anomalyTable tr { background: #ffebee !important; }
+    .hidden { display: none; }
+    #loading {
+      text-align: center;
+      font-size: 18px;
+      color: #3498db;
+      margin: 30px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>CSV Anomaly / Outlier Detector</h1>
+    <p>Upload a CSV file with numeric columns. Outliers are detected using the <strong>IQR method</strong> (standard statistical rule).</p>
+
+    <div class="upload-section">
+      <input type="file" id="csvFile" accept=".csv" />
+      <button id="analyzeBtn" disabled>Analyze CSV</button>
+    </div>
+
+    <div id="loading" class="hidden">Processing your file...</div>
+
+    <div id="results" class="hidden">
+      <div class="summary">
+        <p><strong>Total rows:</strong> <span id="totalRows">-</span></p>
+        <p><strong>Anomalies found:</strong> <span id="anomalyCount">-</span></p>
+        <button id="downloadAnomalies" class="download-btn">Download Anomalies as CSV</button>
+      </div>
+
+      <h2>Normal Data</h2>
+      <div class="table-container">
+        <table id="normalTable"><thead><tr></tr></thead><tbody></tbody></table>
+      </div>
+
+      <h2>Anomalous Data (Outliers)</h2>
+      <div class="table-container">
+        <table id="anomalyTable"><thead><tr></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Enable Analyze button when a file is selected
+    document.getElementById('csvFile').addEventListener('change', e => {
+      document.getElementById('analyzeBtn').disabled = !e.target.files[0];
+    });
+
+    // Main analysis
+    document.getElementById('analyzeBtn').addEventListener('click', () => {
+      const file = document.getElementById('csvFile').files[0];
+      if (!file) return;
+
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('results').classList.add('hidden');
+
+      Papa.parse(file, {
+        header: true,
+        dynamicTyping: true,
+        skipEmptyLines: true,
+        complete: results => processData(results.data)
+      });
+    });
+
+    function processData(rows) {
+      if (rows.length === 0) return alert("No data found in the CSV.");
+
+      const headers = Object.keys(rows[0]);
+      const numericCols = headers.filter(col =>
+        rows.some(r => r[col] != null && typeof r[col] === 'number')
+      );
+
+      if (numericCols.length === 0) return alert("No numeric columns found for outlier detection.");
+
+      const anomalies = [];
+      const normal = [];
+
+      rows.forEach((row, idx) => {
+        let isOutlier = false;
+        const reasons = [];
+
+        numericCols.forEach(col => {
+          const values = rows.map(r => r[col]).filter(v => typeof v === 'number');
+          const sorted = values.slice().sort((a,b) => a-b);
+          const q1 = quantile(sorted, 0.25);
+          const q3 = quantile(sorted, 0.75);
+          const iqr = q3 - q1;
+          const lower = q1 - 1.5 * iqr;
+          const upper = q3 + 1.5 * iqr;
+
+          const val = row[col];
+          if (val != null && typeof val === 'number' && (val < lower || val > upper)) {
+            isOutlier = true;
+            reasons.push(`${col}: ${val} (bounds: ${lower.toFixed(2)}–${upper.toFixed(2)})`);
+          }
+        });
+
+        if (isOutlier) {
+          row._row = idx + 2;           // original row number (1-based + header)
+          row._reason = reasons.join(' | ');
+          anomalies.push(row);
+        } else {
+          normal.push(row);
+        }
+      });
+
+      displayResults(headers, normal, anomalies);
+      document.getElementById('loading').classList.add('hidden');
+    }
+
+    // Quantile helper (used for Q1 and Q3)
+    function quantile(arr, q) {
+      const pos = (arr.length - 1) * q;
+      const base = Math.floor(pos);
+      const rest = pos - base;
+      if (arr[base + 1] !== undefined) {
+        return arr[base] + rest * (arr[base + 1] - arr[base]);
+      }
+      return arr[base];
+    }
+
+    function displayResults(headers, normalData, anomalyData) {
+      document.getElementById('totalRows').textContent = normalData.length + anomalyData.length;
+      document.getElementById('anomalyCount').textContent = anomalyData.length;
+
+      const allHeaders = [...headers, '_row', '_reason'];
+
+      renderTable('normalTable', headers, normalData);
+      renderTable('anomalyTable', allHeaders, anomalyData);
+
+      document.getElementById('results').classList.remove('hidden');
+
+      // Download anomalies
+      document.getElementById('downloadAnomalies').onclick = () => {
+        const cleanAnomalies = anomalyData.map(r => {
+          const copy = {...r};
+          delete copy._row;
+          delete copy._reason;
+          return copy;
+        });
+        const csv = Papa.unparse(cleanAnomalies);
+        downloadCSV(csv, 'anomalies.csv');
+      };
+    }
+
+    function renderTable(tableId, headers, data) {
+      const table = document.getElementById(tableId);
+      const theadRow = table.querySelector('thead tr');
+      const tbody = table.querySelector('tbody');
+      theadRow.innerHTML = '';
+      tbody.innerHTML = '';
+
+      headers.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h === '_row' ? 'Original Row' :
+                         h === '_reason' ? 'Outlier Reason' : h;
+        theadRow.appendChild(th);
+      });
+
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        headers.forEach(h => {
+          const td = document.createElement('td');
+          let val = row[h];
+          if (val === null || val === undefined) val = '';
+          if (h === '_reason') {
+            td.textContent = val;
+            td.style.color = '#c0392b';
+            td.style.fontSize = '0.9em';
+          } else {
+            td.textContent = val;
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function downloadCSV(csvContent, filename) {
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
