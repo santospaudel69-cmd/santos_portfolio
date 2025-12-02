@@ -1,273 +1,1148 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>CSV Anomaly / Outlier Detector</title>
-
-  <!-- PapaParse CDN (for robust CSV parsing) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6f9;
-      color: #333;
-      margin: 0;
-      padding: 20px;
-    }
-    .container {
-      max-width: 1300px;
-      margin: 0 auto;
-      background: white;
-      padding: 30px;
-      border-radius: 10px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    }
-    h1 { text-align: center; color: #2c3e50; }
-    p { text-align: center; color: #555; }
-    .upload-section {
-      text-align: center;
-      margin: 30px 0;
-    }
-    #csvFile { padding: 10px; font-size: 16px; }
-    #analyzeBtn {
-      padding: 12px 30px;
-      font-size: 16px;
-      background: #3498db;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      margin-left: 10px;
-    }
-    #analyzeBtn:disabled { background: #95a5a6; cursor: not-allowed; }
-    #analyzeBtn:hover:not(:disabled) { background: #2980b9; }
-
-    .summary {
-      background: #ecf0f1;
-      padding: 15px;
-      border-radius: 8px;
-      margin: 20px 0;
-      text-align: center;
-      font-size: 18px;
-    }
-    .download-btn {
-      margin-top: 15px;
-      padding: 10px 20px;
-      background: #e74c3c;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    .download-btn:hover { background: #c0392b; }
-
-    .table-container {
-      max-height: 500px;
-      overflow: auto;
-      margin: 20px 0;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-    }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
-    th {
-      background: #2c3e50;
-      color: white;
-      position: sticky;
-      top: 0;
-    }
-    tr:nth-child(even) { background: #f9f9f9; }
-    #anomalyTable tr { background: #ffebee !important; }
-    .hidden { display: none; }
-    #loading {
-      text-align: center;
-      font-size: 18px;
-      color: #3498db;
-      margin: 30px 0;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>CSV Anomaly / Outlier Detector</h1>
-    <p>Upload a CSV file with numeric columns. Outliers are detected using the <strong>IQR method</strong> (standard statistical rule).</p>
-
-    <div class="upload-section">
-      <input type="file" id="csvFile" accept=".csv" />
-      <button id="analyzeBtn" disabled>Analyze CSV</button>
-    </div>
-
-    <div id="loading" class="hidden">Processing your file...</div>
-
-    <div id="results" class="hidden">
-      <div class="summary">
-        <p><strong>Total rows:</strong> <span id="totalRows">-</span></p>
-        <p><strong>Anomalies found:</strong> <span id="anomalyCount">-</span></p>
-        <button id="downloadAnomalies" class="download-btn">Download Anomalies as CSV</button>
-      </div>
-
-      <h2>Normal Data</h2>
-      <div class="table-container">
-        <table id="normalTable"><thead><tr></tr></thead><tbody></tbody></table>
-      </div>
-
-      <h2>Anomalous Data (Outliers)</h2>
-      <div class="table-container">
-        <table id="anomalyTable"><thead><tr></tr></thead><tbody></tbody></table>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // Enable Analyze button when a file is selected
-    document.getElementById('csvFile').addEventListener('change', e => {
-      document.getElementById('analyzeBtn').disabled = !e.target.files[0];
-    });
-
-    // Main analysis
-    document.getElementById('analyzeBtn').addEventListener('click', () => {
-      const file = document.getElementById('csvFile').files[0];
-      if (!file) return;
-
-      document.getElementById('loading').classList.remove('hidden');
-      document.getElementById('results').classList.add('hidden');
-
-      Papa.parse(file, {
-        header: true,
-        dynamicTyping: true,
-        skipEmptyLines: true,
-        complete: results => processData(results.data)
-      });
-    });
-
-    function processData(rows) {
-      if (rows.length === 0) return alert("No data found in the CSV.");
-
-      const headers = Object.keys(rows[0]);
-      const numericCols = headers.filter(col =>
-        rows.some(r => r[col] != null && typeof r[col] === 'number')
-      );
-
-      if (numericCols.length === 0) return alert("No numeric columns found for outlier detection.");
-
-      const anomalies = [];
-      const normal = [];
-
-      rows.forEach((row, idx) => {
-        let isOutlier = false;
-        const reasons = [];
-
-        numericCols.forEach(col => {
-          const values = rows.map(r => r[col]).filter(v => typeof v === 'number');
-          const sorted = values.slice().sort((a,b) => a-b);
-          const q1 = quantile(sorted, 0.25);
-          const q3 = quantile(sorted, 0.75);
-          const iqr = q3 - q1;
-          const lower = q1 - 1.5 * iqr;
-          const upper = q3 + 1.5 * iqr;
-
-          const val = row[col];
-          if (val != null && typeof val === 'number' && (val < lower || val > upper)) {
-            isOutlier = true;
-            reasons.push(`${col}: ${val} (bounds: ${lower.toFixed(2)}–${upper.toFixed(2)})`);
-          }
-        });
-
-        if (isOutlier) {
-          row._row = idx + 2;           // original row number (1-based + header)
-          row._reason = reasons.join(' | ');
-          anomalies.push(row);
-        } else {
-          normal.push(row);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>In-Browser CSV Data Analyst</title>
+    <!-- Tailwind CSS CDN for modern, responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary': '#4f46e5',
+                        'primary-dark': '#4338ca',
+                        'secondary': '#f97316',
+                        'background': '#f3f4f6',
+                    }
+                }
+            }
         }
-      });
+    </script>
+    <!-- Custom Styles for UI Polish and required Sticky Headers -->
+    <style>
+        body {
+            background-color: #f3f4f6;
+            padding: 20px;
+        }
+        .card {
+            @apply bg-white p-6 rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl border border-gray-100;
+        }
+        /* Style for data tables */
+        .data-table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 0.75rem;
+            border: 1px solid #e5e7eb;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data-table th, .data-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #f3f4f6;
+            white-space: nowrap; /* Prevent column content from wrapping */
+        }
+        .data-table th {
+            @apply bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-600 sticky top-0 z-10;
+        }
+        .data-table tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+        .data-table tr.anomaly {
+            background-color: #fee2e2; /* Red-100 */
+        }
+        /* Custom scrollbar for better visibility */
+        .data-table-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .data-table-container::-webkit-scrollbar-thumb {
+            background-color: #d1d5db;
+            border-radius: 10px;
+        }
+    </style>
+    <!-- PapaParse CDN for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <!-- Chart.js CDN for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Luxon CDN for Date/Time handling -->
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+</head>
+<body class="font-sans min-h-screen">
 
-      displayResults(headers, normal, anomalies);
-      document.getElementById('loading').classList.add('hidden');
-    }
+    <div class="max-w-7xl mx-auto space-y-8">
+        <header class="text-center py-6">
+            <h1 class="text-4xl font-extrabold text-primary">In-Browser CSV Data Analyst</h1>
+            <p class="text-gray-600 mt-1">Upload, Analyze, Filter, Group, and Visualize your data on the client side.</p>
+        </header>
 
-    // Quantile helper (used for Q1 and Q3)
-    function quantile(arr, q) {
-      const pos = (arr.length - 1) * q;
-      const base = Math.floor(pos);
-      const rest = pos - base;
-      if (arr[base + 1] !== undefined) {
-        return arr[base] + rest * (arr[base + 1] - arr[base]);
-      }
-      return arr[base];
-    }
+        <!-- FILE UPLOAD AND CONFIGURATION -->
+        <section class="card grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+            <div class="col-span-1">
+                <label for="csvFile" class="block text-sm font-medium text-gray-700 mb-1">1. Select CSV File</label>
+                <input type="file" id="csvFile" accept=".csv" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary-dark">
+            </div>
 
-    function displayResults(headers, normalData, anomalyData) {
-      document.getElementById('totalRows').textContent = normalData.length + anomalyData.length;
-      document.getElementById('anomalyCount').textContent = anomalyData.length;
+            <div class="col-span-1">
+                <label for="delimiter" class="block text-sm font-medium text-gray-700 mb-1">2. Delimiter</label>
+                <select id="delimiter" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md shadow-sm">
+                    <option value=",">,</option>
+                    <option value=";">;</option>
+                    <option value="&#9;">Tab</option>
+                    <option value="|">|</option>
+                </select>
+            </div>
 
-      const allHeaders = [...headers, '_row', '_reason'];
+            <div class="col-span-1 flex items-center h-full">
+                <input id="hasHeader" type="checkbox" checked class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary">
+                <label for="hasHeader" class="ml-2 block text-sm font-medium text-gray-700">File has Header Row</label>
+            </div>
+        </section>
 
-      renderTable('normalTable', headers, normalData);
-      renderTable('anomalyTable', allHeaders, anomalyData);
+        <!-- MAIN DATA DISPLAY AND TOOLS -->
+        <div id="appContainer" class="hidden space-y-8">
 
-      document.getElementById('results').classList.remove('hidden');
+            <!-- DATA PREVIEW -->
+            <section class="card">
+                <h2 class="text-2xl font-semibold text-primary mb-4">Data Preview (<span id="rowCount">0</span> rows)</h2>
+                <div id="dataPreview" class="data-table-container">
+                    <p class="text-gray-500">Upload a CSV to view data here.</p>
+                </div>
+            </section>
 
-      // Download anomalies
-      document.getElementById('downloadAnomalies').onclick = () => {
-        const cleanAnomalies = anomalyData.map(r => {
-          const copy = {...r};
-          delete copy._row;
-          delete copy._reason;
-          return copy;
+            <!-- STATISTICS & COLUMN INFORMATION -->
+            <section class="card">
+                <h2 class="text-2xl font-semibold text-primary mb-4">Column Statistics & Schema</h2>
+                <div id="statsTableContainer" class="data-table-container">
+                    <!-- Statistics table will be generated here -->
+                </div>
+            </section>
+
+            <!-- ANOMALY DETECTION -->
+            <section class="card">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold text-primary">Anomaly Detection</h2>
+                    <span id="anomalyCount" class="px-3 py-1 bg-secondary text-white text-sm font-bold rounded-full shadow-md">Anomalies: 0</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label for="anomalyColumn" class="block text-sm font-medium text-gray-700">Numeric Column</label>
+                        <select id="anomalyColumn" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md shadow-sm"></select>
+                    </div>
+                    <div>
+                        <label for="anomalyMethod" class="block text-sm font-medium text-gray-700">Method</label>
+                        <select id="anomalyMethod" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md shadow-sm">
+                            <option value="Z_SCORE">Z-score ( |Z| > 3 )</option>
+                            <option value="IQR">IQR ( 1.5 &times; IQR Rule )</option>
+                            <option value="BOTH">Both</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button id="detectAnomalyBtn" class="w-full bg-primary text-white py-2 px-4 rounded-lg hover:bg-primary-dark transition-colors duration-200">
+                            Detect Anomalies
+                        </button>
+                    </div>
+                </div>
+
+                <div id="anomalyResults" class="mt-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h3 class="text-xl font-medium text-gray-800 mb-2">Anomalous Rows</h3>
+                            <div id="anomalyTable" class="data-table-container min-h-[100px]">
+                                <p class="text-gray-500 p-3">Run detection to see results.</p>
+                            </div>
+                            <button id="exportAnomalyBtn" class="mt-2 text-sm text-primary hover:underline disabled:text-gray-400" disabled>Download Anomalies CSV</button>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-medium text-gray-800 mb-2">Normal Rows</h3>
+                            <div id="normalTable" class="data-table-container min-h-[100px]">
+                                <p class="text-gray-500 p-3">Run detection to see results.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- FILTERING & GROUPING -->
+            <section class="card grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- FILTERING PANEL -->
+                <div>
+                    <h2 class="text-2xl font-semibold text-primary mb-4">Data Filtering</h2>
+                    <label for="filterInput" class="block text-sm font-medium text-gray-700 mb-1">Filter Condition (e.g., Age > 30 && Country === 'USA')</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="filterInput" placeholder="Condition (e.g., Salary > 50000 && City.includes('New'))" class="flex-grow p-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary shadow-sm">
+                        <button id="applyFilterBtn" class="bg-secondary text-white py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors duration-200">
+                            Apply Filter
+                        </button>
+                    </div>
+                    <p id="filterError" class="text-red-500 text-sm mt-2"></p>
+
+                    <h3 class="text-xl font-medium text-gray-800 mt-6 mb-2">Filtered Data (<span id="filteredRowCount">0</span> rows)</h3>
+                    <div id="filteredTable" class="data-table-container min-h-[150px]">
+                        <p class="text-gray-500 p-3">Filtered results will appear here.</p>
+                    </div>
+                    <button id="exportFilteredBtn" class="mt-2 text-sm text-primary hover:underline disabled:text-gray-400" disabled>Download Filtered CSV</button>
+                </div>
+
+                <!-- GROUPING PANEL -->
+                <div>
+                    <h2 class="text-2xl font-semibold text-primary mb-4">Group By & Aggregation</h2>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label for="groupByColumn" class="block text-sm font-medium text-gray-700">Group By</label>
+                            <select id="groupByColumn" class="mt-1 block w-full py-2 text-base border-gray-300 rounded-md shadow-sm"></select>
+                        </div>
+                        <div>
+                            <label for="aggregateColumn" class="block text-sm font-medium text-gray-700">Value Column</label>
+                            <select id="aggregateColumn" class="mt-1 block w-full py-2 text-base border-gray-300 rounded-md shadow-sm"></select>
+                        </div>
+                        <div>
+                            <label for="aggregationFn" class="block text-sm font-medium text-gray-700">Aggregation</label>
+                            <select id="aggregationFn" class="mt-1 block w-full py-2 text-base border-gray-300 rounded-md shadow-sm">
+                                <option value="COUNT">COUNT</option>
+                                <option value="SUM">SUM</option>
+                                <option value="AVERAGE">AVERAGE</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="applyGroupBtn" class="w-full bg-primary text-white py-2 px-4 rounded-lg hover:bg-primary-dark transition-colors duration-200 mt-4">
+                        Apply Group By
+                    </button>
+
+                    <h3 class="text-xl font-medium text-gray-800 mt-6 mb-2">Grouped Results</h3>
+                    <div id="groupedTable" class="data-table-container min-h-[150px]">
+                        <p class="text-gray-500 p-3">Grouped results will appear here.</p>
+                    </div>
+                    <button id="exportGroupedBtn" class="mt-2 text-sm text-primary hover:underline disabled:text-gray-400" disabled>Download Grouped CSV</button>
+                </div>
+            </section>
+
+            <!-- VISUALIZATION & TREND ANALYSIS -->
+            <section class="card">
+                <h2 class="text-2xl font-semibold text-primary mb-4">Data Visualization & Trend Analysis</h2>
+
+                <!-- CHART CONFIG -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 items-end">
+                    <div>
+                        <label for="chartType" class="block text-sm font-medium text-gray-700">Chart Type</label>
+                        <select id="chartType" class="mt-1 block w-full py-2 text-base border-gray-300 rounded-md shadow-sm">
+                            <option value="bar">Bar Chart (Categorical)</option>
+                            <option value="histogram">Histogram (Numeric)</option>
+                            <option value="line">Line Chart (Date Trend)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="chartColumn" class="block text-sm font-medium text-gray-700">Value Column</label>
+                        <select id="chartColumn" class="mt-1 block w-full py-2 text-base border-gray-300 rounded-md shadow-sm"></select>
+                    </div>
+                    <div id="datePeriodContainer" class="hidden">
+                        <label for="datePeriod" class="block text-sm font-medium text-gray-700">Trend Period</label>
+                        <select id="datePeriod" class="mt-1 block w-full py-2 text-base border-gray-300 rounded-md shadow-sm">
+                            <option value="daily">Daily</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <div id="dateValueColumnContainer" class="hidden">
+                        <label for="dateValueColumn" class="block text-sm font-medium text-gray-700">Aggregation Value</label>
+                        <select id="dateValueColumn" class="mt-1 block w-full py-2 text-base border-gray-300 rounded-md shadow-sm"></select>
+                    </div>
+                    <div>
+                        <button id="generateChartBtn" class="w-full bg-secondary text-white py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors duration-200">
+                            Generate Chart
+                        </button>
+                    </div>
+                </div>
+
+                <!-- CHART CANVAS -->
+                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-inner">
+                    <canvas id="dataChart" width="100%" height="300"></canvas>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        const DL = luxon.DateTime; // Alias Luxon
+        // --- GLOBAL STATE ---
+        let rawData = [];
+        let dataColumns = []; // Array of { name: 'colName', type: 'numeric'/'categorical'/'date', dateFmt: 'yyyy-MM-dd' }
+        let currentAnomalies = [];
+        let currentFilteredData = [];
+        let chartInstance = null;
+        let anomalyExportData = [];
+
+        // --- DOM ELEMENTS ---
+        const $ = (id) => document.getElementById(id);
+        const csvFile = $('csvFile');
+        const delimiter = $('delimiter');
+        const hasHeader = $('hasHeader');
+        const appContainer = $('appContainer');
+        const dataPreview = $('dataPreview');
+        const rowCountSpan = $('rowCount');
+        const statsTableContainer = $('statsTableContainer');
+        const anomalyColumn = $('anomalyColumn');
+        const anomalyMethod = $('anomalyMethod');
+        const detectAnomalyBtn = $('detectAnomalyBtn');
+        const anomalyCountSpan = $('anomalyCount');
+        const anomalyTableDiv = $('anomalyTable');
+        const normalTableDiv = $('normalTable');
+        const exportAnomalyBtn = $('exportAnomalyBtn');
+        const filterInput = $('filterInput');
+        const applyFilterBtn = $('applyFilterBtn');
+        const filterError = $('filterError');
+        const filteredTableDiv = $('filteredTable');
+        const filteredRowCountSpan = $('filteredRowCount');
+        const exportFilteredBtn = $('exportFilteredBtn');
+        const groupByColumn = $('groupByColumn');
+        const aggregateColumn = $('aggregateColumn');
+        const aggregationFn = $('aggregationFn');
+        const applyGroupBtn = $('applyGroupBtn');
+        const groupedTableDiv = $('groupedTable');
+        const exportGroupedBtn = $('exportGroupedBtn');
+        const chartType = $('chartType');
+        const chartColumn = $('chartColumn');
+        const datePeriodContainer = $('datePeriodContainer');
+        const dateValueColumnContainer = $('dateValueColumnContainer');
+        const datePeriod = $('datePeriod');
+        const dateValueColumn = $('dateValueColumn');
+        const generateChartBtn = $('generateChartBtn');
+        const dataChartCanvas = $('dataChart');
+
+        // --- UTILITY FUNCTIONS (MATH) ---
+
+        /** Calculates the mean (average) of an array of numbers. */
+        const getMean = (data) => data.reduce((sum, val) => sum + val, 0) / data.length;
+
+        /** Calculates the standard deviation of an array of numbers. */
+        const getStdDev = (data, mean) => {
+            const squareDiffs = data.map(val => Math.pow(val - mean, 2));
+            const avgSquareDiff = getMean(squareDiffs);
+            return Math.sqrt(avgSquareDiff);
+        };
+
+        /** Calculates the median and quartiles (Q1, Q2, Q3) of an array of numbers. */
+        const getQuartiles = (data) => {
+            if (data.length === 0) return { Q1: 0, Q2: 0, Q3: 0, IQR: 0, median: 0 };
+            const sorted = [...data].sort((a, b) => a - b);
+            const n = sorted.length;
+
+            const getIndex = (p) => {
+                const index = p * n;
+                if (index % 1 === 0) { // Integer index
+                    return (sorted[index - 1] + sorted[index]) / 2;
+                } else { // Non-integer index
+                    return sorted[Math.floor(index)];
+                }
+            };
+
+            // Using the exclusive method for quartiles (nearest rank interpolation, similar to R type 7)
+            const getQuantile = (p) => {
+                const h = p * (n + 1);
+                const k = Math.floor(h);
+                const g = h - k;
+                if (k < 1) return sorted[0];
+                if (k >= n) return sorted[n - 1];
+                return sorted[k - 1] + g * (sorted[k] - sorted[k - 1]);
+            };
+
+            const Q1 = getQuantile(0.25);
+            const Q2 = getQuantile(0.5); // Median
+            const Q3 = getQuantile(0.75);
+            const IQR = Q3 - Q1;
+
+            return {
+                Q1: parseFloat(Q1.toFixed(4)),
+                Q2: parseFloat(Q2.toFixed(4)),
+                Q3: parseFloat(Q3.toFixed(4)),
+                IQR: parseFloat(IQR.toFixed(4)),
+                median: parseFloat(Q2.toFixed(4))
+            };
+        };
+
+        /** Calculates the mode of an array (can be mixed types). */
+        const getMode = (data) => {
+            const counts = {};
+            data.forEach(val => counts[val] = (counts[val] || 0) + 1);
+            let mode = [];
+            let maxCount = 0;
+
+            for (const key in counts) {
+                if (counts[key] > maxCount) {
+                    maxCount = counts[key];
+                    mode = [key];
+                } else if (counts[key] === maxCount && maxCount > 1) {
+                    mode.push(key);
+                }
+            }
+            // If every value is unique, return 'N/A'
+            return maxCount > 1 ? mode.join(', ') : 'N/A (All unique)';
+        };
+
+        // --- DATA PROCESSING FUNCTIONS ---
+
+        /** Heuristically detects the data type of a column. */
+        const detectColumnType = (columnName, data) => {
+            let numCount = 0;
+            let dateCount = 0;
+            let total = data.length;
+
+            const numericData = [];
+
+            for (let i = 0; i < total; i++) {
+                const value = data[i][columnName];
+                if (value === null || value === undefined || value.toString().trim() === '') {
+                    continue;
+                }
+
+                // Check for numeric
+                const num = Number(value);
+                if (!isNaN(num) && value !== '') {
+                    numCount++;
+                    numericData.push(num);
+                    continue;
+                }
+
+                // Check for date/time
+                const dt = DL.fromISO(value) || DL.fromFormat(value, 'M/d/yyyy') || DL.fromFormat(value, 'dd-MM-yyyy') || DL.fromJSDate(new Date(value));
+                if (dt.isValid) {
+                    dateCount++;
+                }
+            }
+
+            const isNumeric = numCount / total > 0.9;
+            const isDate = dateCount / total > 0.8;
+
+            let type = 'categorical';
+            let dateFmt = null;
+
+            if (isNumeric) {
+                type = 'numeric';
+            } else if (isDate) {
+                type = 'date';
+                // Try to infer a date format (this is a simplified heuristic)
+                if (dateCount > 0) {
+                     const sample = data.find(row => row[columnName]);
+                     if (sample) {
+                         const dt = DL.fromJSDate(new Date(sample[columnName]));
+                         if (dt.isValid) {
+                             // Simple attempt to guess a standard format
+                             if (dt.year > 2000) dateFmt = 'yyyy-MM-dd'; // ISO-like
+                         }
+                     }
+                }
+            }
+
+            return { type, numericData, dateFmt };
+        };
+
+        /** Main function to analyze the data and set column definitions. */
+        const analyzeData = (data) => {
+            if (data.length === 0) return;
+
+            const columns = Object.keys(data[0]);
+            dataColumns = [];
+            const statsHtml = [];
+            statsHtml.push('<table class="data-table"><thead><tr><th>Column</th><th>Type</th><th>Unique / Count</th><th>Min</th><th>Max</th><th>Mean</th><th>Median (Q2)</th><th>Mode</th><th>Std Dev</th><th>IQR</th></tr></thead><tbody>');
+
+            columns.forEach(col => {
+                const columnData = data.map(row => row[col]);
+                const { type, numericData, dateFmt } = detectColumnType(col, data);
+
+                const colDef = { name: col, type: type, dateFmt: dateFmt };
+                dataColumns.push(colDef);
+
+                const stats = {
+                    min: 'N/A', max: 'N/A', mean: 'N/A', median: 'N/A', mode: 'N/A', stdDev: 'N/A', IQR: 'N/A',
+                    uniqueCount: 0,
+                    earliestDate: 'N/A', latestDate: 'N/A'
+                };
+
+                // --- Calculate Statistics ---
+                if (type === 'numeric') {
+                    const cleanData = numericData.filter(n => !isNaN(n));
+                    if (cleanData.length > 0) {
+                        const mean = getMean(cleanData);
+                        const { Q1, Q2, Q3, IQR, median } = getQuartiles(cleanData);
+                        const stdDev = getStdDev(cleanData, mean);
+
+                        stats.min = Math.min(...cleanData).toFixed(2);
+                        stats.max = Math.max(...cleanData).toFixed(2);
+                        stats.mean = mean.toFixed(2);
+                        stats.median = median;
+                        stats.mode = getMode(columnData);
+                        stats.stdDev = stdDev.toFixed(2);
+                        stats.IQR = IQR;
+                    }
+                    stats.uniqueCount = new Set(columnData.map(String).filter(s => s !== '')).size;
+                } else if (type === 'categorical') {
+                    const uniqueValues = new Set(columnData.map(String).filter(s => s !== ''));
+                    stats.uniqueCount = `${uniqueValues.size} / ${data.length}`;
+                    stats.mode = getMode(columnData);
+                } else if (type === 'date') {
+                    const validDates = columnData.map(val => DL.fromJSDate(new Date(val)).isValid ? DL.fromJSDate(new Date(val)) : null)
+                                                 .filter(dt => dt !== null);
+                    if (validDates.length > 0) {
+                        const sortedDates = validDates.sort((a, b) => a.toMillis() - b.toMillis());
+                        stats.earliestDate = sortedDates[0].toISODate();
+                        stats.latestDate = sortedDates[sortedDates.length - 1].toISODate();
+                    }
+                    stats.uniqueCount = validDates.length;
+                    stats.min = stats.earliestDate;
+                    stats.max = stats.latestDate;
+                }
+
+                statsHtml.push(`
+                    <tr>
+                        <td class="font-semibold text-gray-900">${col}</td>
+                        <td><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${type === 'numeric' ? 'bg-blue-100 text-blue-800' : type === 'date' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}">${type}</span></td>
+                        <td>${stats.uniqueCount}</td>
+                        <td>${stats.min}</td>
+                        <td>${stats.max}</td>
+                        <td>${stats.mean}</td>
+                        <td>${stats.median}</td>
+                        <td>${stats.mode}</td>
+                        <td>${stats.stdDev}</td>
+                        <td>${stats.IQR}</td>
+                    </tr>
+                `);
+            });
+
+            statsHtml.push('</tbody></table>');
+            statsTableContainer.innerHTML = statsHtml.join('');
+            populateControls(); // Update dropdowns after analysis
+        };
+
+        // --- ANOMALY DETECTION LOGIC ---
+
+        const getAnomalyBounds = (numericData, method) => {
+            const mean = getMean(numericData);
+            const stdDev = getStdDev(numericData, mean);
+            const { Q1, Q3, IQR } = getQuartiles(numericData);
+
+            let lowerBound, upperBound;
+
+            if (method === 'Z_SCORE' || method === 'BOTH') {
+                lowerBound = mean - 3 * stdDev;
+                upperBound = mean + 3 * stdDev;
+            } else if (method === 'IQR' || method === 'BOTH') {
+                const iqrFactor = 1.5;
+                const iqrLower = Q1 - iqrFactor * IQR;
+                const iqrUpper = Q3 + iqrFactor * IQR;
+
+                if (method === 'IQR') {
+                    lowerBound = iqrLower;
+                    upperBound = iqrUpper;
+                } else { // BOTH method: uses the widest range (most permissive inclusion)
+                    lowerBound = Math.min(lowerBound, iqrLower);
+                    upperBound = Math.max(upperBound, iqrUpper);
+                }
+            }
+            return { mean, stdDev, Q1, Q3, IQR, lowerBound, upperBound };
+        };
+
+        const detectAnomalies = () => {
+            const colName = anomalyColumn.value;
+            const method = anomalyMethod.value;
+            const colDef = dataColumns.find(c => c.name === colName);
+
+            if (!colName || !colDef || colDef.type !== 'numeric') {
+                alertUser("Please select a numeric column for anomaly detection.", 'error');
+                return;
+            }
+
+            // Extract only the numeric values for calculation
+            const numericData = rawData
+                .map(row => Number(row[colName]))
+                .filter(n => !isNaN(n));
+
+            if (numericData.length === 0) {
+                alertUser("No valid numeric data found in the selected column.", 'error');
+                return;
+            }
+
+            const { mean, stdDev, lowerBound, upperBound } = getAnomalyBounds(numericData, method);
+
+            let normalRows = [];
+            currentAnomalies = [];
+
+            // Helper to check for Z-score anomaly
+            const checkZScore = (value) => Math.abs((value - mean) / stdDev) > 3;
+
+            // Helper to check for IQR anomaly
+            const checkIQR = (value) => {
+                const { Q1, Q3, IQR } = getQuartiles(numericData);
+                const iqrFactor = 1.5;
+                const iqrLower = Q1 - iqrFactor * IQR;
+                const iqrUpper = Q3 + iqrFactor * IQR;
+                return value < iqrLower || value > iqrUpper;
+            };
+
+            // Main detection loop
+            rawData.forEach(row => {
+                const value = Number(row[colName]);
+                let isAnomaly = false;
+
+                if (isNaN(value)) {
+                    normalRows.push(row); // Non-numeric values are not considered anomalies here
+                    return;
+                }
+
+                if (method === 'Z_SCORE') {
+                    isAnomaly = checkZScore(value);
+                } else if (method === 'IQR') {
+                    isAnomaly = checkIQR(value);
+                } else if (method === 'BOTH') {
+                    // Flag if either method detects it
+                    isAnomaly = checkZScore(value) || checkIQR(value);
+                }
+
+                if (isAnomaly) {
+                    currentAnomalies.push(row);
+                } else {
+                    normalRows.push(row);
+                }
+            });
+
+            // Update UI
+            anomalyCountSpan.textContent = `Anomalies: ${currentAnomalies.length}`;
+            renderTable(anomalyTableDiv, currentAnomalies, colName);
+            renderTable(normalTableDiv, normalRows);
+
+            // Prepare data for export
+            anomalyExportData = currentAnomalies;
+            exportAnomalyBtn.disabled = currentAnomalies.length === 0;
+
+            alertUser(`Detection complete: Found ${currentAnomalies.length} anomalies in column "${colName}".`, 'success');
+        };
+
+        // --- FILTERING LOGIC ---
+
+        const applyFilter = () => {
+            const filterString = filterInput.value.trim();
+            filterError.textContent = '';
+            currentFilteredData = [];
+
+            if (!filterString) {
+                currentFilteredData = [...rawData];
+                renderTable(filteredTableDiv, currentFilteredData);
+                filteredRowCountSpan.textContent = currentFilteredData.length;
+                exportFilteredBtn.disabled = false;
+                alertUser("Filter cleared. Showing all data.", 'info');
+                return;
+            }
+
+            try {
+                // Sanitize column names for use in the filter expression
+                const sanitizedFilter = filterString.replace(/([a-zA-Z_][a-zA-Z0-9_]*)/g, (match) => {
+                    if (['&&', '||', '!', '===', '==', '!=', '!==', '<', '>', '<=', '>=', 'includes', 'startsWith', 'endsWith', 'Math'].includes(match)) {
+                        return match; // Don't replace JS keywords or common methods
+                    }
+                    // Wrap column names in 'row["..."]' to access them safely
+                    return `row["${match}"]`;
+                });
+
+                // Create a dynamic function to evaluate the filter
+                const filterFunction = new Function('row', `return ${sanitizedFilter};`);
+
+                currentFilteredData = rawData.filter(row => {
+                    try {
+                        return filterFunction(row);
+                    } catch (e) {
+                        console.error("Error evaluating row:", e);
+                        // If evaluation fails for a specific row, treat it as non-matching
+                        return false;
+                    }
+                });
+
+                renderTable(filteredTableDiv, currentFilteredData);
+                filteredRowCountSpan.textContent = currentFilteredData.length;
+                exportFilteredBtn.disabled = currentFilteredData.length === 0;
+                alertUser(`Filter applied. Found ${currentFilteredData.length} matching rows.`, 'success');
+
+            } catch (e) {
+                filterError.textContent = `Error in filter expression: ${e.message}`;
+                alertUser("Error applying filter. Check the syntax.", 'error');
+                renderTable(filteredTableDiv, []);
+                filteredRowCountSpan.textContent = 0;
+                exportFilteredBtn.disabled = true;
+            }
+        };
+
+        // --- GROUP BY LOGIC ---
+
+        const applyGroupBy = () => {
+            const groupCol = groupByColumn.value;
+            const aggCol = aggregateColumn.value;
+            const aggFn = aggregationFn.value;
+
+            if (!groupCol || !aggCol) {
+                alertUser("Please select both 'Group By' and 'Value Column'.", 'error');
+                return;
+            }
+
+            const groups = new Map();
+
+            rawData.forEach(row => {
+                const groupKey = row[groupCol];
+                const value = Number(row[aggCol]);
+
+                if (!groups.has(groupKey)) {
+                    groups.set(groupKey, { count: 0, sum: 0, values: [] });
+                }
+
+                const group = groups.get(groupKey);
+                group.count++;
+
+                if (!isNaN(value)) {
+                    group.sum += value;
+                    group.values.push(value);
+                }
+            });
+
+            const groupedResults = Array.from(groups.entries()).map(([key, data]) => {
+                const resultRow = { [groupCol]: key, 'Count': data.count };
+
+                if (aggFn === 'COUNT') {
+                    // Count is already calculated
+                    resultRow[`${aggFn} of ${aggCol}`] = data.count;
+                } else if (aggFn === 'SUM') {
+                    resultRow[`${aggFn} of ${aggCol}`] = data.sum.toFixed(2);
+                } else if (aggFn === 'AVERAGE') {
+                    resultRow[`${aggFn} of ${aggCol}`] = (data.sum / data.count).toFixed(2);
+                }
+                return resultRow;
+            });
+
+            renderTable(groupedTableDiv, groupedResults);
+            exportGroupedBtn.disabled = groupedResults.length === 0;
+            alertUser(`Grouped data by ${groupCol} using ${aggFn} on ${aggCol}.`, 'success');
+        };
+
+        // --- VISUALIZATION / CHART.JS LOGIC ---
+
+        const generateChart = () => {
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const type = chartType.value;
+            const colName = chartColumn.value;
+            const colDef = dataColumns.find(c => c.name === colName);
+
+            if (!colName || !colDef) {
+                alertUser("Please select a column for charting.", 'error');
+                return;
+            }
+
+            let chartConfig;
+
+            if (type === 'bar' && colDef.type === 'categorical') {
+                chartConfig = createBarChartConfig(colName);
+            } else if (type === 'histogram' && colDef.type === 'numeric') {
+                chartConfig = createHistogramConfig(colName);
+            } else if (type === 'line' && colDef.type === 'date') {
+                const period = datePeriod.value;
+                const valueCol = dateValueColumn.value;
+                chartConfig = createLineChartConfig(colName, valueCol, period);
+            } else {
+                alertUser(`Invalid chart type or column type selected. Cannot generate a ${type} chart for a ${colDef.type} column.`, 'error');
+                return;
+            }
+
+            if (chartConfig) {
+                chartInstance = new Chart(dataChartCanvas.getContext('2d'), chartConfig);
+                alertUser(`Generated ${type} chart for column "${colName}".`, 'success');
+            }
+        };
+
+        /** Creates config for Bar Chart (Categorical Counts) */
+        const createBarChartConfig = (colName) => {
+            const counts = {};
+            rawData.forEach(row => {
+                const val = row[colName] || 'N/A';
+                counts[val] = (counts[val] || 0) + 1;
+            });
+
+            // Sort by count descending and take top N for readability
+            const sortedCounts = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 20);
+
+            return {
+                type: 'bar',
+                data: {
+                    labels: sortedCounts.map(([key]) => key),
+                    datasets: [{
+                        label: `Count of ${colName}`,
+                        data: sortedCounts.map(([, count]) => count),
+                        backgroundColor: '#4f46e5',
+                        borderColor: '#4f46e5',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Count' } },
+                        x: { title: { display: true, text: colName } }
+                    }
+                }
+            };
+        };
+
+        /** Creates config for Histogram (Numeric Distribution) */
+        const createHistogramConfig = (colName) => {
+            const numericData = rawData
+                .map(row => Number(row[colName]))
+                .filter(n => !isNaN(n));
+
+            if (numericData.length === 0) return alertUser("No numeric data to plot histogram.", 'error');
+
+            const minVal = Math.min(...numericData);
+            const maxVal = Math.max(...numericData);
+            const numBins = 10;
+            const binSize = (maxVal - minVal) / numBins;
+
+            const bins = Array(numBins).fill(0);
+            const labels = [];
+
+            for (let i = 0; i < numBins; i++) {
+                const lower = minVal + i * binSize;
+                const upper = minVal + (i + 1) * binSize;
+                labels.push(`${lower.toFixed(2)}-${upper.toFixed(2)}`);
+            }
+
+            numericData.forEach(val => {
+                let binIndex = Math.floor((val - minVal) / binSize);
+                if (binIndex >= numBins) binIndex = numBins - 1; // Handle max value edge case
+                if (binIndex >= 0) {
+                    bins[binIndex]++;
+                }
+            });
+
+            return {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `Frequency of ${colName}`,
+                        data: bins,
+                        backgroundColor: '#f97316',
+                        borderColor: '#f97316',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Frequency' } },
+                        x: { title: { display: true, text: colName + ' Bins' } }
+                    }
+                }
+            };
+        };
+
+        /** Creates config for Line Chart (Date Trend Analysis) */
+        const createLineChartConfig = (dateCol, valueCol, period) => {
+            const dataMap = new Map(); // Key: formatted date, Value: { sum: number, count: number }
+
+            rawData.forEach(row => {
+                const dateStr = row[dateCol];
+                const value = Number(row[valueCol]);
+
+                if (!dateStr || isNaN(value)) return;
+
+                let date = DL.fromJSDate(new Date(dateStr));
+                if (!date.isValid) return;
+
+                let formatKey;
+                let displayFormat;
+                let sortKey;
+
+                if (period === 'daily') {
+                    formatKey = date.toISODate();
+                    displayFormat = 'yyyy-MM-dd';
+                    sortKey = date.toMillis();
+                } else if (period === 'monthly') {
+                    formatKey = date.toFormat('yyyy-MM');
+                    displayFormat = 'MMM yyyy';
+                    sortKey = date.startOf('month').toMillis();
+                } else if (period === 'yearly') {
+                    formatKey = date.toFormat('yyyy');
+                    displayFormat = 'yyyy';
+                    sortKey = date.startOf('year').toMillis();
+                }
+
+                if (!dataMap.has(formatKey)) {
+                    dataMap.set(formatKey, { sum: 0, count: 0, sortKey, displayLabel: date.toFormat(displayFormat) });
+                }
+
+                const entry = dataMap.get(formatKey);
+                entry.sum += value;
+                entry.count++;
+            });
+
+            // Calculate Averages and sort
+            const trendData = Array.from(dataMap.values())
+                .map(entry => ({
+                    label: entry.displayLabel,
+                    sortKey: entry.sortKey,
+                    average: entry.sum / entry.count
+                }))
+                .sort((a, b) => a.sortKey - b.sortKey);
+
+            return {
+                type: 'line',
+                data: {
+                    labels: trendData.map(d => d.label),
+                    datasets: [{
+                        label: `Average ${valueCol} by ${period}`,
+                        data: trendData.map(d => d.average.toFixed(2)),
+                        borderColor: '#10b981', // Emerald 500
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: false, title: { display: true, text: `Average ${valueCol}` } },
+                        x: { title: { display: true, text: `Time Period (${period})` } }
+                    }
+                }
+            };
+        };
+
+
+        // --- UI & RENDERING FUNCTIONS ---
+
+        /** Renders a standard table for data preview, anomalies, or filtered data. */
+        const renderTable = (container, data, highlightCol = null) => {
+            container.innerHTML = ''; // Clear previous content
+
+            if (data.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 p-3">No data to display in this table.</p>';
+                return;
+            }
+
+            const columns = dataColumns.map(c => c.name);
+            const table = document.createElement('table');
+            table.className = 'data-table';
+            const thead = table.createTHead();
+            const tbody = table.createTBody();
+
+            // Header Row
+            let headerRow = thead.insertRow();
+            columns.forEach(col => {
+                let th = document.createElement('th');
+                th.textContent = col;
+                headerRow.appendChild(th);
+            });
+
+            // Data Rows
+            data.forEach(row => {
+                let tr = tbody.insertRow();
+                if (highlightCol && row === currentAnomalies.find(a => a === row)) {
+                    tr.classList.add('anomaly');
+                }
+
+                columns.forEach(col => {
+                    let td = tr.insertCell();
+                    let value = row[col] === undefined || row[col] === null ? '' : row[col];
+                    td.textContent = value;
+                    if (col === highlightCol && highlightCol && row === currentAnomalies.find(a => a === row)) {
+                        td.classList.add('font-bold', 'text-red-700');
+                    }
+                });
+            });
+
+            const containerDiv = document.createElement('div');
+            containerDiv.className = 'data-table-container';
+            containerDiv.appendChild(table);
+            container.appendChild(containerDiv);
+        };
+
+        /** Populates dropdowns with column names based on their detected type. */
+        const populateControls = () => {
+            const numericCols = dataColumns.filter(c => c.type === 'numeric');
+            const dateCols = dataColumns.filter(c => c.type === 'date');
+
+            // --- Anomaly Column ---
+            anomalyColumn.innerHTML = `<option value="">Select Column</option>` +
+                numericCols.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+
+            // --- Grouping & Aggregation ---
+            groupByColumn.innerHTML = `<option value="">Group By...</option>` +
+                dataColumns.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+            aggregateColumn.innerHTML = `<option value="">Aggregate Value...</option>` +
+                numericCols.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+
+            // --- Charting Column ---
+            chartColumn.innerHTML = `<option value="">Select Column</option>` +
+                dataColumns.map(c => `<option value="${c.name}">${c.name} (${c.type})</option>`).join('');
+
+            // --- Date Trend Value Column ---
+            dateValueColumn.innerHTML = `<option value="">Aggregation Value...</option>` +
+                numericCols.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+
+            // Set default selections if available
+            if (numericCols.length > 0) {
+                anomalyColumn.value = numericCols[0].name;
+                aggregateColumn.value = numericCols[0].name;
+                dateValueColumn.value = numericCols[0].name;
+            }
+
+            // Initial chart setup to hide date controls
+            updateChartControls();
+        };
+
+        /** Toggles visibility of Date Trend controls based on chart selection. */
+        const updateChartControls = () => {
+            const isLineChart = chartType.value === 'line';
+            datePeriodContainer.classList.toggle('hidden', !isLineChart);
+            dateValueColumnContainer.classList.toggle('hidden', !isLineChart);
+        };
+
+        /** Displays a temporary user message (instead of alert()). */
+        const alertUser = (message, type = 'info') => {
+            const banner = document.createElement('div');
+            let bgColor = 'bg-blue-100 border-blue-400 text-blue-700';
+            if (type === 'success') bgColor = 'bg-green-100 border-green-400 text-green-700';
+            if (type === 'error') bgColor = 'bg-red-100 border-red-400 text-red-700';
+            if (type === 'info') bgColor = 'bg-yellow-100 border-yellow-400 text-yellow-700';
+
+            banner.className = `fixed top-4 right-4 z-50 p-4 border-l-4 rounded-md shadow-lg ${bgColor} transition-opacity duration-500`;
+            banner.textContent = message;
+
+            document.body.appendChild(banner);
+
+            setTimeout(() => {
+                banner.style.opacity = '0';
+                banner.addEventListener('transitionend', () => banner.remove());
+            }, 3000);
+        };
+
+        // --- EXPORT FUNCTIONS ---
+
+        const downloadCSV = (data, filename) => {
+            if (data.length === 0) {
+                alertUser(`No data to export for ${filename}.`, 'info');
+                return;
+            }
+
+            const csv = Papa.unparse(data);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute("href", url);
+            link.setAttribute("download", filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            alertUser(`Exported ${data.length} rows to ${filename}.`, 'success');
+        };
+
+        // --- EVENT LISTENERS ---
+
+        csvFile.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: hasHeader.checked,
+                delimiter: delimiter.value,
+                skipEmptyLines: true,
+                dynamicTyping: false, // Keep as strings initially for consistent data access
+                complete: function (results) {
+                    if (results.data.length === 0) {
+                        alertUser("The CSV file is empty or could not be parsed.", 'error');
+                        return;
+                    }
+                    if (results.errors.length > 0) {
+                        console.error("PapaParse Errors:", results.errors);
+                        // Show a warning but proceed with data
+                        alertUser(`Warning: ${results.errors.length} parsing errors found. Data may be incomplete.`, 'info');
+                    }
+
+                    rawData = results.data;
+                    rowCountSpan.textContent = rawData.length;
+                    appContainer.classList.remove('hidden');
+
+                    // 1. Render Preview
+                    renderTable(dataPreview, rawData);
+
+                    // 2. Analyze and Render Statistics
+                    analyzeData(rawData);
+
+                    // 3. Clear existing dynamic outputs
+                    anomalyCountSpan.textContent = 'Anomalies: 0';
+                    anomalyTableDiv.innerHTML = '<p class="text-gray-500 p-3">Run detection to see results.</p>';
+                    normalTableDiv.innerHTML = '<p class="text-gray-500 p-3">Run detection to see results.</p>';
+                    filteredTableDiv.innerHTML = '<p class="text-gray-500 p-3">Filtered results will appear here.</p>';
+                    filteredRowCountSpan.textContent = 0;
+                    filterInput.value = '';
+                    filterError.textContent = '';
+                    groupedTableDiv.innerHTML = '<p class="text-gray-500 p-3">Grouped results will appear here.</p>';
+                    if (chartInstance) chartInstance.destroy();
+                    dataChartCanvas.getContext('2d').clearRect(0, 0, dataChartCanvas.width, dataChartCanvas.height);
+
+                    alertUser(`Successfully loaded and analyzed ${rawData.length} rows.`, 'success');
+                }
+            });
         });
-        const csv = Papa.unparse(cleanAnomalies);
-        downloadCSV(csv, 'anomalies.csv');
-      };
-    }
 
-    function renderTable(tableId, headers, data) {
-      const table = document.getElementById(tableId);
-      const theadRow = table.querySelector('thead tr');
-      const tbody = table.querySelector('tbody');
-      theadRow.innerHTML = '';
-      tbody.innerHTML = '';
-
-      headers.forEach(h => {
-        const th = document.createElement('th');
-        th.textContent = h === '_row' ? 'Original Row' :
-                         h === '_reason' ? 'Outlier Reason' : h;
-        theadRow.appendChild(th);
-      });
-
-      data.forEach(row => {
-        const tr = document.createElement('tr');
-        headers.forEach(h => {
-          const td = document.createElement('td');
-          let val = row[h];
-          if (val === null || val === undefined) val = '';
-          if (h === '_reason') {
-            td.textContent = val;
-            td.style.color = '#c0392b';
-            td.style.fontSize = '0.9em';
-          } else {
-            td.textContent = val;
-          }
-          tr.appendChild(td);
+        // Config listeners
+        delimiter.addEventListener('change', () => {
+            if (csvFile.files.length > 0) csvFile.dispatchEvent(new Event('change'));
         });
-        tbody.appendChild(tr);
-      });
-    }
+        hasHeader.addEventListener('change', () => {
+            if (csvFile.files.length > 0) csvFile.dispatchEvent(new Event('change'));
+        });
 
-    function downloadCSV(csvContent, filename) {
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  </script>
+        // Anomaly listeners
+        detectAnomalyBtn.addEventListener('click', detectAnomalies);
+        exportAnomalyBtn.addEventListener('click', () => downloadCSV(anomalyExportData, 'anomalous_data.csv'));
+
+        // Filtering listeners
+        applyFilterBtn.addEventListener('click', applyFilter);
+        exportFilteredBtn.addEventListener('click', () => downloadCSV(currentFilteredData, 'filtered_data.csv'));
+
+        // Grouping listeners
+        applyGroupBtn.addEventListener('click', applyGroupBy);
+        exportGroupedBtn.addEventListener('click', () => downloadCSV(Array.from(groupedTableDiv.querySelector('.data-table tbody').rows).map(row => {
+            // Convert table rows back to objects for export
+            const header = Array.from(groupedTableDiv.querySelector('.data-table thead th')).map(th => th.textContent);
+            return Array.from(row.cells).reduce((obj, cell, index) => {
+                obj[header[index]] = cell.textContent;
+                return obj;
+            }, {});
+        }), 'grouped_data.csv'));
+
+        // Charting listeners
+        chartType.addEventListener('change', updateChartControls);
+        generateChartBtn.addEventListener('click', generateChart);
+
+        // Initial setup for empty state
+        window.onload = () => {
+            dataPreview.innerHTML = '<p class="text-gray-500 p-3">Select a CSV file to begin analysis.</p>';
+            statsTableContainer.innerHTML = '<p class="text-gray-500 p-3">Statistics will be generated here.</p>';
+        };
+    </script>
 </body>
 </html>
